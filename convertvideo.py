@@ -30,6 +30,10 @@ def convert_videos(input_folder, codec, profile=None):
 
     logging.info(f"Starting video conversion for {len(files)} files in folder: {input_folder}")
 
+    # Show loading label
+    root.after(0, lambda: loading_label.config(text="Processing... Please wait"))
+    root.update_idletasks()
+
     # Progress bar setup
     progress_bar["maximum"] = len(files)
     progress_bar["value"] = 0
@@ -61,6 +65,8 @@ def convert_videos(input_folder, codec, profile=None):
         # Update progress bar safely
         root.after(0, lambda value=i + 1: progress_bar.config(value=value))
 
+    # Remove loading label and show success message
+    root.after(0, lambda: loading_label.config(text=""))
     logging.info("Video conversion process completed.")
     root.after(0, lambda: messagebox.showinfo("Success", f"Conversion completed! Files saved in: {output_folder}\nLog: {log_file_name}"))
 
@@ -81,13 +87,17 @@ def start_conversion():
         messagebox.showerror("Error", "Please select a codec.")
         return
 
-    # Disable the start button during conversion
+    # Disable interactive elements
     start_button.config(state="disabled")
+    codec_menu.config(state="disabled")
+    profile_dropdown.config(state="disabled")
 
     def run_conversion():
         convert_videos(input_folder, codec, profile)
-        # Re-enable the start button after conversion
+        # Re-enable interactive elements after conversion
         root.after(0, lambda: start_button.config(state="normal"))
+        root.after(0, lambda: codec_menu.config(state="normal"))
+        root.after(0, lambda: profile_dropdown.config(state="normal"))
 
     # Start a new thread for the conversion process
     conversion_thread = threading.Thread(target=run_conversion)
@@ -102,7 +112,7 @@ def update_profile_visibility(*args):
 # Tkinter UI setup
 root = Tk()
 root.title("Video Codec Converter")
-root.geometry("400x400")  # Adjusted window size
+root.geometry("400x450")  # Adjusted window size
 
 folder_path = StringVar()
 codec_var = StringVar(value="Select Codec")
@@ -134,6 +144,10 @@ profile_dropdown.config(state="disabled")
 # Progress bar
 progress_bar = ttk.Progressbar(root, length=300, mode="determinate")
 progress_bar.pack(pady=10)
+
+# Loading label
+loading_label = ttk.Label(root, text="", foreground="red")
+loading_label.pack(pady=10)
 
 # Start button
 start_button = ttk.Button(root, text="Start Conversion", command=start_conversion)
