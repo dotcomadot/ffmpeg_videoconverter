@@ -8,5 +8,14 @@ __pycache__/
 # Ignore OS-specific files
 .DS_Store
 
-# Ignore logs and temporary files
+# Ignore the build directory
+/build/
+
+# Ignore the dist directory
+/dist/
+
+# Ignore PyInstaller spec files
+*.spec
+
+# Ignore log files
 *.log

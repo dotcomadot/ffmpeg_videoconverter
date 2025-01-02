@@ -1,7 +1,17 @@
-from tkinter import Tk, filedialog, Label, Button, StringVar, OptionMenu, messagebox, ttk
+from tkinter import Tk, filedialog, StringVar, messagebox, ttk
 import os
 import subprocess
+import threading
+import logging
+from datetime import datetime
 
+# Configure logging with a timestamped log file
+log_file_name = f"conversion_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+logging.basicConfig(
+    filename=log_file_name,
+    level=logging.DEBUG,  # Log both errors and debug information
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
 def convert_videos(input_folder, codec, profile=None):
     if not input_folder:
@@ -17,6 +27,8 @@ def convert_videos(input_folder, codec, profile=None):
     if not files:
         messagebox.showerror("Error", "No video files found in the selected folder.")
         return
+
+    logging.info(f"Starting video conversion for {len(files)} files in folder: {input_folder}")
 
     # Progress bar setup
     progress_bar["maximum"] = len(files)
@@ -34,21 +46,27 @@ def convert_videos(input_folder, codec, profile=None):
         command.extend(["-c:a", "aac", output_file])
 
         try:
-            subprocess.run(command, check=True)
+            logging.info(f"Converting {filename} with command: {' '.join(command)}")
+            # Capture stdout and stderr for logging
+            result = subprocess.run(
+                command, check=True, text=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
+            )
+            logging.info(f"Successfully converted {filename} to {output_file}")
         except subprocess.CalledProcessError as e:
-            messagebox.showerror("Error", f"Failed to convert {filename}. Continuing with other files.")
+            logging.error(f"Failed to convert {filename}. Command: {' '.join(command)}\nError: {e.stderr}")
+            root.after(0, lambda: messagebox.showerror(
+                "Error", f"Failed to convert {filename}. Check logs for details."
+            ))
 
-        # Update progress bar
-        progress_bar["value"] = i + 1
-        root.update_idletasks()
+        # Update progress bar safely
+        root.after(0, lambda value=i + 1: progress_bar.config(value=value))
 
-    messagebox.showinfo("Success", f"Conversion completed! Files saved in: {output_folder}")
-
+    logging.info("Video conversion process completed.")
+    root.after(0, lambda: messagebox.showinfo("Success", f"Conversion completed! Files saved in: {output_folder}\nLog: {log_file_name}"))
 
 def select_folder():
     folder = filedialog.askdirectory(title="Select Folder")
     folder_path.set(folder)
-
 
 def start_conversion():
     input_folder = folder_path.get()
@@ -63,15 +81,23 @@ def start_conversion():
         messagebox.showerror("Error", "Please select a codec.")
         return
 
-    convert_videos(input_folder, codec, profile)
+    # Disable the start button during conversion
+    start_button.config(state="disabled")
 
+    def run_conversion():
+        convert_videos(input_folder, codec, profile)
+        # Re-enable the start button after conversion
+        root.after(0, lambda: start_button.config(state="normal"))
+
+    # Start a new thread for the conversion process
+    conversion_thread = threading.Thread(target=run_conversion)
+    conversion_thread.start()
 
 def update_profile_visibility(*args):
     if codec_var.get() == "prores_ks":
         profile_dropdown.config(state="normal")
     else:
         profile_dropdown.config(state="disabled")
-
 
 # Tkinter UI setup
 root = Tk()
@@ -83,24 +109,25 @@ codec_var = StringVar(value="Select Codec")
 profile_var = StringVar(value="Select Profile")
 
 # Folder selection
-Label(root, text="Select Folder:").pack(pady=5)
-Button(root, text="Browse", command=select_folder).pack(pady=5)
-Label(root, textvariable=folder_path, wraplength=350).pack(pady=5)
+ttk.Label(root, text="Select Folder:").pack(pady=5)
+ttk.Button(root, text="Browse", command=select_folder).pack(pady=5)
+ttk.Label(root, textvariable=folder_path, wraplength=350).pack(pady=5)
 
 # Codec selection
-Label(root, text="Select Codec:").pack(pady=5)
+ttk.Label(root, text="Select Codec:").pack(pady=5)
 codec_options = ["libx264", "libx265", "libvpx-vp9", "prores_ks"]
-OptionMenu(root, codec_var, *codec_options).pack(pady=5)
+codec_menu = ttk.OptionMenu(root, codec_var, *codec_options)
+codec_menu.pack(pady=5)
 
 # ProRes profile selection
-Label(root, text="Select ProRes Profile (if applicable):").pack(pady=5)
+ttk.Label(root, text="Select ProRes Profile (if applicable):").pack(pady=5)
 profile_options = {
     "Proxy (0)": "0",
     "LT (1)": "1",
     "Normal (2)": "2",
     "HQ (3)": "3"
 }
-profile_dropdown = OptionMenu(root, profile_var, *profile_options.keys())
+profile_dropdown = ttk.OptionMenu(root, profile_var, *profile_options.keys())
 profile_dropdown.pack(pady=5)
 profile_dropdown.config(state="disabled")
 
@@ -108,16 +135,8 @@ profile_dropdown.config(state="disabled")
 progress_bar = ttk.Progressbar(root, length=300, mode="determinate")
 progress_bar.pack(pady=10)
 
-# Start button with proper colors for visibility
-start_button = Button(
-    root, 
-    text="Start Conversion", 
-    command=start_conversion, 
-    bg="#4CAF50",   # Light green background
-    fg="white",     # White text
-    activebackground="#45A049",  # Slightly darker green when clicked
-    activeforeground="white"     # Keep text visible when clicked
-)
+# Start button
+start_button = ttk.Button(root, text="Start Conversion", command=start_conversion)
 start_button.pack(pady=20)
 
 # Update profile visibility dynamically
