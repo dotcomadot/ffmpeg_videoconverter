@@ -1,0 +1,12 @@
+# Ignore virtual environment
+video_converter_env/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore OS-specific files
+.DS_Store
+
+# Ignore logs and temporary files
+*.log
